@@ -1,19 +1,6 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # 01 — Load and Bronze
-# MAGIC Loads the existing PaySim dataset already available in Databricks (loaded via the Kaggle API)
-# MAGIC and lands it as a Delta **Bronze** table with no transformations beyond adding ingestion metadata.
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Widgets — set these to match your environment
-# MAGIC - `source_table`: fully qualified name of the existing PaySim table, **or**
-# MAGIC - `source_path`: a file path (CSV/Parquet) if the data was landed as files rather than a table.
-# MAGIC
-# MAGIC Only one of the two needs to resolve — the notebook tries `source_table` first.
-
-# COMMAND ----------
+# 01 — Load and Bronze
+# Loads the existing PaySim dataset already available in Databricks (loaded via the Kaggle API)
 
 dbutils.widgets.removeAll()
 dbutils.widgets.text("catalog", "workspace", "Catalog")
@@ -28,12 +15,10 @@ source_path = dbutils.widgets.get("source_path")
 
 bronze_table = f"{catalog}.{schema}.bronze_paysim"
 
-# COMMAND ----------
 
 # spark.sql(f"CREATE CATALOG IF NOT EXISTS `{catalog}`")
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{catalog}`.`{schema}`")
 
-# COMMAND ----------
 
 from pyspark.sql import functions as F
 
@@ -65,13 +50,8 @@ if df is None:
 print(f"Row count: {df.count():,}")
 display(df.limit(10))
 
-# COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Write Bronze
-# MAGIC Raw data as-is, plus minimal ingestion metadata (no cleaning, no type fixes — that happens in Silver).
-
-# COMMAND ----------
+#  Write Bronze
 
 bronze_df = (
     df
@@ -90,8 +70,5 @@ bronze_df = (
 print(f"Bronze table written: {bronze_table}")
 display(spark.table(bronze_table).limit(5))
 
-# COMMAND ----------
 
-# MAGIC %md
-# MAGIC Bronze table: `bronze_paysim` — raw PaySim rows, unmodified, with ingestion timestamp/source tag.
-# MAGIC Continue to **02_Silver_Cleaning**.
+# Continue to **02_Silver_Cleaning**.

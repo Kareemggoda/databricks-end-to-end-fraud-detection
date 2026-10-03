@@ -135,4 +135,4 @@ streamlit run streamlit_app.py  # terminal 2: demo at http://localhost:8501
 
 ## Author
 
-[Your name] · [LinkedIn URL]
+[Kareem Basem Goda] · [https://linkedin.com/in/kareem-goda-79b710298]

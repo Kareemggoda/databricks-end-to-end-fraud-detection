@@ -1,10 +1,7 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # 02 — Silver Cleaning
-# MAGIC Reads Bronze, fixes types, handles nulls/duplicates, validates transactions,
-# MAGIC and adds a small set of useful engineered features.
-
-# COMMAND ----------
+# 02 — Silver Cleaning
+# Reads Bronze, fixes types, handles nulls/duplicates, validates transactions,
+# adds a small set of useful engineered features.
 
 dbutils.widgets.removeAll()
 dbutils.widgets.text("catalog", "workspace", "Catalog")
@@ -19,7 +16,6 @@ silver_table = f"{catalog}.{schema}.silver_paysim"
 print("Bronze source:", bronze_table)
 print("Silver target:", silver_table)
 
-# COMMAND ----------
 
 from pyspark.sql import functions as F
 from pyspark.sql.types import IntegerType, DoubleType, StringType, BooleanType
@@ -27,12 +23,9 @@ from pyspark.sql.types import IntegerType, DoubleType, StringType, BooleanType
 df = spark.table(bronze_table)
 print(f"Bronze row count: {df.count():,}")
 
-# COMMAND ----------
 
-# MAGIC %md ## Fix data types
-# MAGIC PaySim raw columns: `step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig, nameDest, oldbalanceDest, newbalanceDest, isFraud, isFlaggedFraud`
-
-# COMMAND ----------
+# Fix data types
+# PaySim raw columns: `step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig, nameDest, oldbalanceDest, newbalanceDest, isFraud, isFlaggedFraud`
 
 df_typed = (
     df
@@ -49,12 +42,10 @@ df_typed = (
     .withColumn("isFlaggedFraud", F.col("isFlaggedFraud").cast(IntegerType()))
 )
 
-# COMMAND ----------
 
-# MAGIC %md ## Handle nulls
-# MAGIC Drop rows missing any field essential to the transaction; PaySim is normally complete, so this is a safety net.
+# Handle nulls
+# Drop rows missing any field essential to the transaction; PaySim is normally complete, so this is a safety net.
 
-# COMMAND ----------
 
 required_cols = [
     "step", "type", "amount", "nameOrig", "oldbalanceOrg", "newbalanceOrig",
@@ -69,26 +60,19 @@ display(null_report)
 df_clean = df_typed.dropna(subset=required_cols)
 print(f"Rows after null drop: {df_clean.count():,}")
 
-# COMMAND ----------
 
-# MAGIC %md ## Remove duplicates
-# MAGIC A transaction is treated as duplicate if every business column matches exactly.
+# Remove duplicates
+# A transaction is treated as duplicate if every business column matches exactly.
 
-# COMMAND ----------
 
 before = df_clean.count()
 df_clean = df_clean.dropDuplicates(required_cols + ["isFlaggedFraud"])
 after = df_clean.count()
 print(f"Removed {before - after:,} duplicate rows")
 
-# COMMAND ----------
 
-# MAGIC %md ## Validate transaction data
-# MAGIC Flag (don't silently drop) rows with impossible values, then filter out the clearly invalid ones
-# MAGIC (negative amounts/balances). Everything else is kept — imbalance and edge cases are exactly what
-# MAGIC the fraud model needs to see.
-
-# COMMAND ----------
+# Validate transaction data
+# Flag (don't silently drop) rows with impossible values, then filter out the clearly invalid ones
 
 df_validated = (
     df_clean
@@ -115,17 +99,14 @@ df_validated = (
 
 print(f"Rows after validation: {df_validated.count():,}")
 
-# COMMAND ----------
 
-# MAGIC %md ## Feature engineering
-# MAGIC - **transaction_hour**: hour of day (PaySim `step` = 1 simulated hour; 744 steps = 31 days)
-# MAGIC - **balance change features**: how balances actually moved
-# MAGIC - **amount-related features**: ratio of amount to sender's balance, whether amount drains the account
-# MAGIC - **basic fraud-related indicators**: the classic PaySim balance-error signals, which are strongly
-# MAGIC   associated with fraud in this dataset (fraudulent transfers/cash-outs tend to zero out balances
-# MAGIC   in ways that don't reconcile).
+# Feature engineering
+# **transaction_hour**: hour of day (PaySim `step` = 1 simulated hour; 744 steps = 31 days)
+# **balance change features**: how balances actually moved
+# **amount-related features**: ratio of amount to sender's balance, whether amount drains the account
+# **basic fraud-related indicators**: the classic PaySim balance-error signals, which are strongly
+# associated with fraud in this dataset (fraudulent transfers/cash-outs tend to zero out balances in ways that don't reconcile).
 
-# COMMAND ----------
 
 df_features = (
     df_validated
@@ -162,11 +143,18 @@ df_features = (
 
 display(df_features.limit(10))
 
-# COMMAND ----------
+# | Feature                      | Simple meaning                                          |
+# | ---------------------------- | ------------------------------------------------------- |
+# | `orig_balance_delta`         | How much the sender's balance changed                   |
+# | `dest_balance_delta`         | How much the receiver's balance changed                 |
+# | `amount_to_oldbalance_ratio` | How much of the sender's old balance was sent           |
+# | `orig_balance_emptied`       | Did the sender's balance become zero?                   |
+# | `dest_balance_was_zero`      | Was the receiver's balance zero before the transaction? |
+# | `error_balance_orig`         | Is the sender's balance calculation correct?            |
+# | `error_balance_dest`         | Is the receiver's balance calculation correct?          |
+# | `is_merchant_dest`           | Is the receiver a merchant?                             |
 
-# MAGIC %md ## Write Silver
-
-# COMMAND ----------
+# Write Silver
 
 (
     df_features.write
@@ -179,8 +167,5 @@ display(df_features.limit(10))
 print(f"Silver table written: {silver_table}")
 print(f"Row count: {spark.table(silver_table).count():,}")
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Silver table: `silver_paysim` — typed, deduplicated, validated, feature-enriched.
-# MAGIC Continue to **03_Gold_Data_Model**.
+# Silver table: `silver_paysim` — typed, deduplicated, validated, feature-enriched.
+# Continue to **03_Gold_Data_Model**.

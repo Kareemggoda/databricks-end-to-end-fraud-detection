@@ -1,15 +1,10 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # 03 — Gold Data Model (Star Schema)
-# MAGIC Builds a simple star schema on top of Silver:
-# MAGIC
-# MAGIC ```
-# MAGIC              DimDate
-# MAGIC                 │
-# MAGIC DimTransactionType ── FactTransactions ── DimFraud
-# MAGIC ```
+# # 03 — Gold Data Model (Star Schema)
+# Builds a simple star schema on top of Silver:
+#                     DimDate
+#                        │
+#  DimTransactionType ── FactTransactions ── DimFraud
 
-# COMMAND ----------
 
 dbutils.widgets.removeAll()
 dbutils.widgets.text("catalog", "workspace", "Catalog")
@@ -30,13 +25,11 @@ fact_table = f"{catalog}.{schema}.FactTransactions"
 print("Silver source:", silver_table)
 print("Gold targets:", dim_date_table, dim_type_table, dim_fraud_table, fact_table, sep="\n  ")
 
-# COMMAND ----------
 
-# MAGIC %md ## Drop existing keys
-# MAGIC Primary/foreign keys are removed before the tables are rewritten (a foreign key can block
-# MAGIC overwriting the dimension it references). They are re-created at the end of the notebook.
+# Drop existing keys
+# Primary/foreign keys are removed before the tables are rewritten (a foreign key can block
+# overwriting the dimension it references). They are re-created at the end of the notebook.
 
-# COMMAND ----------
 
 constraints_to_drop = {
     "FactTransactions": ["fk_fact_date", "fk_fact_type", "fk_fact_fraud"],
@@ -49,11 +42,11 @@ for table, names in constraints_to_drop.items():
         try:
             spark.sql(f"ALTER TABLE {catalog}.{schema}.{table} DROP CONSTRAINT IF EXISTS {name}")
         except Exception:
-            pass  # table doesn't exist yet on the first run
+            pass  # table doesn't exist yet on the first run 
+            # This is the first time running the notebook, so the Gold tables may not have been created yet. Therefore, there are no constraints to remove.
 
 print("Old keys dropped (if any).")
 
-# COMMAND ----------
 
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
@@ -62,16 +55,13 @@ silver = spark.table(silver_table)
 silver_count = silver.count()
 print(f"Silver row count: {silver_count:,}")
 
-# COMMAND ----------
 
-# MAGIC %md ## DimDate
-# MAGIC PaySim's `step` is simulated hours (1 hour per step, 744 steps ≈ 31 days). There's no real calendar
-# MAGIC date in the raw data, so DimDate anchors `transaction_day` to an arbitrary start date to make the
-# MAGIC dimension usable for date filtering in the dashboard.
-# MAGIC
-# MAGIC Grain: one row per simulated hour. `calendar_datetime` supports hourly "Fraud over Time" charts.
+# DimDate
+# PaySim's `step` is simulated hours (1 hour per step, 744 steps ≈ 31 days). There's no real calendar
+# date in the raw data, so DimDate anchors `transaction_day` to an arbitrary start date to make the
+# dimension usable for date filtering in the dashboard.
+# Grain: one row per simulated hour. `calendar_datetime` supports hourly "Fraud over Time" charts.
 
-# COMMAND ----------
 
 dim_date = (
     silver
@@ -99,11 +89,9 @@ dim_date.write.format("delta").mode("overwrite").option("overwriteSchema", "true
 print(f"{dim_date_table}: {spark.table(dim_date_table).count():,} rows")
 display(spark.table(dim_date_table).orderBy("date_key").limit(5))
 
-# COMMAND ----------
 
-# MAGIC %md ## DimTransactionType
+# DimTransactionType
 
-# COMMAND ----------
 
 dim_type = (
     silver
@@ -118,12 +106,10 @@ dim_type.write.format("delta").mode("overwrite").option("overwriteSchema", "true
 print(f"{dim_type_table}: {spark.table(dim_type_table).count():,} rows")
 display(spark.table(dim_type_table).orderBy("transaction_type_key"))
 
-# COMMAND ----------
 
-# MAGIC %md ## DimFraud
-# MAGIC One row per distinct combination of `isFraud` / `isFlaggedFraud`, with a readable label.
+# DimFraud
+# One row per distinct combination of `isFraud` / `isFlaggedFraud`, with a readable label.
 
-# COMMAND ----------
 
 dim_fraud = (
     silver
@@ -145,14 +131,12 @@ dim_fraud.write.format("delta").mode("overwrite").option("overwriteSchema", "tru
 print(f"{dim_fraud_table}: {spark.table(dim_fraud_table).count():,} rows")
 display(spark.table(dim_fraud_table).orderBy("fraud_key"))
 
-# COMMAND ----------
 
-# MAGIC %md ## FactTransactions
-# MAGIC Transaction-level grain, one row per PaySim transaction, joined to the dimension keys plus the
-# MAGIC measures and engineered features needed for the dashboard and the ML step.
-# MAGIC Dimensions are re-read from their Delta tables so the fact keys always match what was written.
+# FactTransactions
+# Transaction-level grain, one row per PaySim transaction, joined to the dimension keys plus the
+# measures and engineered features needed for the dashboard and the ML step.
+# Dimensions are re-read from their Delta tables so the fact keys always match what was written.
 
-# COMMAND ----------
 
 dim_type_lk = spark.table(dim_type_table).select("transaction_type_key", "transaction_type")
 dim_fraud_lk = spark.table(dim_fraud_table).select("fraud_key", "isFraud", "isFlaggedFraud")
@@ -200,13 +184,11 @@ fact_count = spark.table(fact_table).count()
 print(f"{fact_table}: {fact_count:,} rows")
 display(spark.table(fact_table).limit(5))
 
-# COMMAND ----------
 
-# MAGIC %md ## Quick sanity checks
-# MAGIC - Fact row count must equal Silver (joins must not duplicate or drop rows)
-# MAGIC - No NULL foreign keys (every fact row must match a dimension row)
+# Quick sanity checks
+# Fact row count must equal Silver (joins must not duplicate or drop rows)
+# No NULL foreign keys (every fact row must match a dimension row)
 
-# COMMAND ----------
 
 assert fact_count == silver_count, f"Row mismatch: Silver={silver_count:,}, Fact={fact_count:,}"
 
@@ -228,7 +210,6 @@ display(orphan_dates)
 
 print("Row count check passed: Fact matches Silver.")
 
-# COMMAND ----------
 
 spark.sql(f"""
 SELECT
@@ -241,13 +222,11 @@ GROUP BY d.fraud_label
 ORDER BY txn_count DESC
 """).display()
 
-# COMMAND ----------
 
-# MAGIC %md ## Primary and foreign keys
-# MAGIC Informational (not enforced) Unity Catalog constraints that document the star schema.
-# MAGIC They let Catalog Explorer draw the entity relationship diagram for the Gold tables.
+# Primary and foreign keys
+# Informational (not enforced) Unity Catalog constraints that document the star schema.
+# They let Catalog Explorer draw the entity relationship diagram for the Gold tables.
 
-# COMMAND ----------
 
 pk_defs = [
     ("DimDate", "date_key", "pk_dimdate"),
@@ -278,10 +257,8 @@ WHERE table_schema = '{schema}'
 ORDER BY constraint_type DESC, table_name
 """))
 
-# COMMAND ----------
 
-# MAGIC %md
-# MAGIC Gold star schema is ready: `FactTransactions`, `DimDate`, `DimTransactionType`, `DimFraud`,
-# MAGIC with primary and foreign keys declared.
-# MAGIC Use these tables to build the dashboard (see `dashboard_queries.sql`) and continue to
-# MAGIC **04_Fraud_Detection_Model**.
+# Gold star schema is ready: `FactTransactions`, `DimDate`, `DimTransactionType`, `DimFraud`,
+# with primary and foreign keys declared.
+# Use these tables to build the dashboard (see `dashboard_queries.sql`) and continue to
+# **04_Fraud_Detection_Model**.
